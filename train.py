@@ -4,59 +4,20 @@ import os
 from PIL import Image
 import matplotlib.pyplot as plt
 import cv2
-from skimage.filters import unsharp_mask
 import staintools
 import time
 from tqdm import tqdm
-from skimage.feature import graycomatrix, graycoprops
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
-#from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split
 import joblib
-
-def preprocess_image(image_path):
-    """
-    Applies unsharp masking to the input images
-    """
-
-    image = Image.open(image_path)
-    image = np.array(image.resize((200,200)))
-
-    unsharped_image = unsharp_mask(image, radius=2, amount=5, channel_axis=2)
-    unsharped_image = (unsharped_image * 255).astype(np.uint8)
-    return unsharped_image
-    #normalized_image = normalizer.transform(unsharped_image)
-    #return normalized_image
-
-def glcm_feature_extractor(grayscale_image, angles):
-    """
-    Implements the glcm to the input gray scale image and returns the dictionary of features
-    """
-    glcm = {
-        'contrast': [],
-        'dissimilarity': [],
-        'homogeneity': [],
-        'energy': [],
-        'correlation': []
-    }
-    #conversion to match graycomatrix input type
-    if grayscale_image.dtype == np.float32 or grayscale_image.dtype == np.float64:
-        grayscale_image = (255 * grayscale_image).astype(np.uint8)  #glcm: input format: uint8 image
-
-    for angle in angles:
-        glcm_matrix = graycomatrix(grayscale_image, distances=[1], angles=[angle], symmetric=True, normed=True)
-        # print(glcm)
-        # print(graycoprops(glcm))
-        # time.sleep(100)
-        glcm['contrast'].append(graycoprops(glcm_matrix, 'contrast')[0, 0])
-        glcm['dissimilarity'].append(graycoprops(glcm_matrix, 'dissimilarity')[0, 0])
-        glcm['homogeneity'].append(graycoprops(glcm_matrix, 'homogeneity')[0, 0])
-        glcm['energy'].append(graycoprops(glcm_matrix, 'energy')[0, 0])
-        glcm['correlation'].append(graycoprops(glcm_matrix, 'correlation')[0, 0])
-
-    return glcm
+import lightgbm
+import xgboost
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import GridSearchCV
+import utils
 
 def feature_extraction(preprocessed_image):
     """
@@ -65,10 +26,14 @@ def feature_extraction(preprocessed_image):
     gray_processed = cv2.cvtColor(np.float32(preprocessed_image), cv2.COLOR_BGR2GRAY)
 
     mean, median, std_dev = np.mean(gray_processed), np.median(gray_processed), np.std(gray_processed)
-    
-    glcm_features = glcm_feature_extractor(grayscale_image=gray_processed, angles=[0, np.pi/4, np.pi/2, 0.75*np.pi])
+    percentile_25, percentile_75 = np.percentile(gray_processed, 25), np.percentile(gray_processed, 75)
+
+    glcm_features = utils.glcm_feature_extractor(grayscale_image=gray_processed, angles=[0, np.pi/4, np.pi/2, 0.75*np.pi])
     #print(glcm_features)
-    return mean, median, std_dev, glcm_features
+
+    hu_moments = utils.hu_invariant_moments(grayscale_image=gray_processed)
+
+    return mean, median, std_dev, percentile_25, percentile_75, glcm_features, hu_moments
 
 
 def main():
@@ -77,15 +42,24 @@ def main():
         image_path = './train/' + row['name'] + '.jpg'
         #print(image_path)
         #time.sleep(8)
-        preprocessed_image = preprocess_image(image_path)
+        preprocessed_image = utils.preprocess_image(image_path)
         #print(type(preprocessed_image))
         #time.sleep(10)
-        mean, median, std_dev, glcm_feature_dict = feature_extraction(preprocessed_image)
+        mean, median, std_dev, per_25, per_75, glcm_feature_dict, hu_list = feature_extraction(preprocessed_image)
         one_part = ({
             'image_id': row['name'],
             'mean': mean,
             'median': median,
             'std_dev': std_dev,
+            'percentile_25': per_25,
+            'percentile_75': per_75,
+            'hu1': hu_list[0],
+            'hu2': hu_list[1],
+            'hu3': hu_list[2],
+            'hu4': hu_list[3],
+            'hu5': hu_list[4],
+            'hu6': hu_list[5],
+            'hu7': hu_list[6],
             'label': row['label'],
         })
 
@@ -98,30 +72,57 @@ def main():
     features_dataframe = pd.DataFrame(features)
     #print(features_dataframe.head())
 
-    #######################TRAINING###################
-    
-    X = features_dataframe.drop(['image_id', 'label'], axis=1)
-    print(len(X))
-    y = features_dataframe['label']
+    #separate the training images we have into train(80%) and test(20%) 
+    X_train, X_test, y_train, y_test = train_test_split(features_dataframe.drop(['image_id', 'label'], axis=1), features_dataframe['label'], test_size=0.2, random_state=42)
 
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X)
+    ####################TRAINING###################
 
-    classifier = SVC(kernel='rbf', verbose=True) 
+    ####uncomment when want to find the best hyperparameters of one model 
+    # param_grid = {
+    #     'C': [0.1, 1, 10, 100, 1000],
+    #     'gamma': ['scale', 'auto'],
+    #     'kernel': ['rbf', 'poly', 'sigmoid']
+    # }
+
+    #grid_search = GridSearchCV(SVC(), param_grid, verbose=3, refit=True)
+    #grid_search.fit(X_train, y_train)
+
+    #print("best hyperparameters:", grid_search.best_params_)
+    #print("corresponding score:", grid_search.best_score_)
+    #After finding the best hyperparameters, save/rememer the values and use them in the classifier
+
+    ###Normal training 
+
+    X_train_scaled = StandardScaler().fit_transform(X_train)
+    y = y_train
+
+    X_test_scaled = StandardScaler().fit_transform(X_test)
+    y_test = y_test
+
+    #TODO: Voting classifier --> SVM, XGBoost, LightGBM, Random Forest
+
+    #svm
+    classifier = SVC(kernel='rbf', verbose=True, gamma='scale', C=10)
     classifier.fit(X_train_scaled, y)
 
-    joblib.dump(classifier, 'svm_trained.pkl')
-    
-    #metrics
+    #train metrics
     train_predictions = classifier.predict(X_train_scaled)
     train_accuracy = accuracy_score(y_true=y, y_pred=train_predictions)
     print("Training accuracy: ", train_accuracy)
 
-    conf_matrix = confusion_matrix(y, train_predictions)
-    print(conf_matrix)
+    #test
+    test_predictions = classifier.predict(X_test_scaled)
+    test_accuracy = accuracy_score(y_true=y_test, y_pred=test_predictions)
+    print("Test accuracy: ", test_accuracy)
 
-    report = classification_report(y, train_predictions)
-    print(report)
+    #confusion matrix
+    print("Confusion matrix: ")
+    print(confusion_matrix(y_true=y_test, y_pred=test_predictions))
+
+    #classification report
+    print("Classification report: ")
+    print(classification_report(y_true=y_test, y_pred=test_predictions))
+    
 
 if __name__ == '__main__':
     CSV_PATH = 'train.csv'
@@ -130,23 +131,10 @@ if __name__ == '__main__':
     dataframe = pd.read_csv(CSV_PATH)
 
     #not used (in accordance with paper)
-    reference_image_path = './data/Adenocarcinoma/3dff0129-d23a-4496-bafc-1e8abe99439e.jpg'
-    reference_image = staintools.read_image(reference_image_path)
-    reference_image = staintools.LuminosityStandardizer.standardize(reference_image)
-    normalizer = staintools.StainNormalizer(method='vahadane')
-    normalizer.fit(reference_image)
+    # reference_image_path = './data/Adenocarcinoma/3dff0129-d23a-4496-bafc-1e8abe99439e.jpg'
+    # reference_image = staintools.read_image(reference_image_path)
+    # reference_image = staintools.LuminosityStandardizer.standardize(reference_image)
+    # normalizer = staintools.StainNormalizer(method='vahadane')
+    # normalizer.fit(reference_image)
     
     main()
-
-
-##subplots
-# fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-# axes[0].imshow(Image.open(image_path))
-# axes[0].set_title('Original Image')
-# axes[0].axis('off')
-
-# axes[1].imshow(preprocessed_image, cmap='gray')
-# axes[1].set_title('Preprocessed Image')
-# axes[1].axis('off')
-
-# plt.show()
