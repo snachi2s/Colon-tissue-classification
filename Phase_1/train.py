@@ -67,6 +67,10 @@ def main():
             for index, value in enumerate(value):
                 column_name = f"{feature}{index+1}"
                 one_part[column_name] = value
+
+        for i, value in enumerate(color_hist_list):
+            one_part[f"color_hist{i+1}"] = value
+            
         features.append(one_part)
 
     features_dataframe = pd.DataFrame(features)

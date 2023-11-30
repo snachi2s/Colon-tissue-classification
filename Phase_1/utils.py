@@ -61,3 +61,15 @@ def hu_invariant_moments(grayscale_image):
     for i in range(0,7):
         hu_moments[i] = -1 * np.copysign(1.0, hu_moments[i]) * np.log10(abs(hu_moments[i]))
     return hu_moments.flatten()
+
+def extract_color_histogram_features(image_path, num_bins=128):
+    '''
+    Extracts histogram values only from the red channels of the input image
+    '''
+    image = cv2.imread(image_path)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+    red_hist = cv2.calcHist([image], [0], None, [num_bins], [0, 256]).flatten()
+
+    red_hist = red_hist / red_hist.sum()
+    return red_hist
