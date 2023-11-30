@@ -4,6 +4,8 @@ import numpy as np
 from PIL import Image
 from skimage.filters import unsharp_mask
 import cv2
+from skimage import color, filters, io, img_as_float
+from skimage.transform import resize
 
 reference_image_path = './data/Adenocarcinoma/3dff0129-d23a-4496-bafc-1e8abe99439e.jpg'
 reference_image = staintools.read_image(reference_image_path)
@@ -15,13 +17,11 @@ def preprocess_image(image_path):
     """
     Applies unsharp masking to the input images
     """
-
-    image = Image.open(image_path)
-    image = np.array(image.resize((200,200)))
-
-    unsharped_image = unsharp_mask(image, radius=2, amount=5, channel_axis=2)
-    unsharped_image = (unsharped_image * 255).astype(np.uint8)
-    return unsharped_image
+    image = io.imread(image_path)
+    image = resize(image, (256,256))
+    image = img_as_float(image)
+    sharpened_image = unsharp_mask(image, radius=2, amount=5, preserve_range=True, channel_axis=2)
+    return sharpened_image
 
 def glcm_feature_extractor(grayscale_image, angles):
     """
