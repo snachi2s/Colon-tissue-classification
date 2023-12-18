@@ -1,3 +1,3 @@
 % Train and Classify
-% The Training and classification is don the Classification Learner App in
+% The Training and classification is done the Classification Learner App in
 % Matlab
