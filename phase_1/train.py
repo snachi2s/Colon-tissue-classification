@@ -23,7 +23,7 @@ from sklearn.ensemble import ExtraTreesClassifier
 from xgboost import XGBClassifier
 from imblearn.over_sampling import BorderlineSMOTE
 from sklearn.metrics import roc_auc_score
-from sklearn.decomposition import PCA
+#from sklearn.decomposition import PCA
 
 
 def main():
@@ -33,14 +33,15 @@ def main():
     for index, row in tqdm(dataframe.iterrows(), total=dataframe.shape[0], desc='Extracting features'):
         image_path = './train/' + row['name'] + '.jpg'
         
-        resized_image_array = utils.preprocess_image(image_path)
+        resized_image_array = utils.preprocess_image(image_path) #preprocessing 
         hsv_histogram = utils.color_feature_extractor(resized_image_array)
-        hsv_features = {f'hsv_bin_{i}': hsv_histogram[i] for i in range(len(hsv_histogram))}
+        #each bin as separate feature
+        hsv_features = {f'hsv_bin_{i}': hsv_histogram[i] for i in range(len(hsv_histogram))} 
 
         gray_image = cv2.cvtColor(resized_image_array, cv2.COLOR_BGR2GRAY)
-        gray_image = cv2.medianBlur(gray_image, 3)
-        glcm_features = utils.glcm_feature_extractor(gray_image)
+        gray_image = cv2.medianBlur(gray_image, 3)     
 
+        glcm_features = utils.glcm_feature_extractor(gray_image) #feature extraction
         hu_moments = utils.hu_invariant_moments(gray_image)
         hu_moments = {f'hu_moments_{i}': hu_moments[i] for i in range(len(hu_moments))}
 
@@ -53,7 +54,7 @@ def main():
         }
         features.append(one_part)
 
-    features_dataframe = pd.DataFrame(features)
+    features_dataframe = pd.DataFrame(features) #overall feature set
     #features_dataframe.to_csv('current_feature_set.csv', index=False)
 
     X_train, X_test, y_train, y_test = train_test_split(features_dataframe.drop(['image_id', 'label'], axis=1), features_dataframe['label'], test_size=0.2, random_state=42)
@@ -62,10 +63,10 @@ def main():
     #pca = PCA(n_components=0.95)
 
     #to handle class imbalance
-    smote = BorderlineSMOTE(random_state=42, kind='borderline-1')
-    x_train_smote, y_train_smote = smote.fit_resample(X_train, y_train)
-    X_train = x_train_smote
-    y_train = y_train_smote
+    # smote = BorderlineSMOTE(random_state=42, kind='borderline-1')
+    # x_train_smote, y_train_smote = smote.fit_resample(X_train, y_train)
+    # X_train = x_train_smote
+    # y_train = y_train_smote
     
     scaler = StandardScaler().fit(X_train)
     X_train_scaled = scaler.transform(X_train)
@@ -86,7 +87,7 @@ def main():
     eclf.fit(X_train_scaled, y)
 
     #to train on separate models
-    # eclf = clf_3
+    # eclf = clf_3                #lgbm
     # eclf.fit(X_train_scaled, y)
 
     #METRICS
@@ -100,10 +101,10 @@ def main():
     print("Test accuracy: ", test_accuracy)
 
     conf_matrix = confusion_matrix(y_true=y_test, y_pred=test_predictions)
-    print("Confusion matrix: ", conf_matrix)
+    print("Confusion matrix: \n", conf_matrix)
 
     clf_report = classification_report(y_true=y_test, y_pred=test_predictions)
-    print("Classification report: ", clf_report)
+    print("Classification report: \n", clf_report)
 
     #save model
     #joblib.dump(eclf, 'color_hist_glcm_525f_try.pkl')    

@@ -34,7 +34,11 @@ def train_model(dataframe):
         gray_image = cv2.medianBlur(gray_image, 3)
         glcm_features = utils.glcm_feature_extractor(gray_image)
 
-        combined_features = {**hsv_features, **glcm_features}  
+        hu_moments = utils.hu_invariant_moments(gray_image)
+        hu_moments = {f'hu_moments_{i}': hu_moments[i] for i in range(len(hu_moments))}
+
+        combined_features = {**hsv_features, **glcm_features, **hu_moments} 
+        #print(combined_features) 
         one_part = {
             'image_id': row['name'],
             'label': row['label'],
@@ -49,12 +53,10 @@ def train_model(dataframe):
     X_train, X_test, y_train, y_test = train_test_split(features_dataframe.drop(['image_id', 'label'], axis=1), features_dataframe['label'], test_size=0.2, random_state=42)
 
     #to handle class imbalance
-    smote = BorderlineSMOTE(random_state=42, kind='borderline-1')
-
-    x_train_smote, y_train_smote = smote.fit_resample(X_train, y_train)
-
-    X_train = x_train_smote
-    y_train = y_train_smote
+    # smote = BorderlineSMOTE(random_state=42, kind='borderline-1')
+    # x_train_smote, y_train_smote = smote.fit_resample(X_train, y_train)
+    # X_train = x_train_smote
+    # y_train = y_train_smote
     
     scaler = StandardScaler().fit(X_train)
     X_train_scaled = scaler.transform(X_train)
@@ -104,7 +106,11 @@ def predict_on_test_images(classifier, scaler, test_csv, test_img_dir):
         gray_image = cv2.medianBlur(gray_image, 3)
         glcm_features = utils.glcm_feature_extractor(gray_image)
 
-        combined_features = {**hsv_features, **glcm_features}  
+        hu_moments = utils.hu_invariant_moments(gray_image)
+        hu_moments = {f'hu_moments_{i}': hu_moments[i] for i in range(len(hu_moments))}
+
+        combined_features = {**hsv_features, **glcm_features, **hu_moments} 
+        #print(combined_features) 
         one_part = {
             'image_id': row['name'],
             'label': row['label'],

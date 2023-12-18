@@ -58,7 +58,7 @@ def glcm_feature_extractor(gray_image):
         features['Energy'].append(graycoprops(glcm, 'energy')[0, i])
         features['Correlation'].append(graycoprops(glcm, 'correlation')[0, i])
         features['ASM'].append(graycoprops(glcm, 'ASM')[0, i])
-
+        #ref: https://github.com/luispedro/mahotas/blob/master/mahotas/features/texture.py
         glcm_ent = entropy(glcm[:, :, 0, i].ravel())
         features['Entropy'].append(glcm_ent)
         features['Variance'].append(np.var(glcm[:, :, 0, i]))
