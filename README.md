@@ -30,5 +30,15 @@ Inside phase_1,
 
 ![image info](./phase_1/analysis/results/image.png)
 
+For normal training and checking metrics, 
+```python
+python train.py
+```
+
+To train the model and generate the predictions CSV file, run
+```python
+python submission_pipeline.py
+```
+
 
 # PHASE 2: DL
