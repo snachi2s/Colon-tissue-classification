@@ -1,6 +1,9 @@
 # GROUP 5
 # Colon-tissue-classification
 
+
+# PHASE 1: ML 
+
 ## List of feature extraction methods (we tried):
 
 - GLCM
@@ -14,7 +17,7 @@
 
 ## Folder structure
 
-Inside pahse_1,
+Inside phase_1,
 
 - **previous_best** - this folder contains the feature extraction and training pipeline for our previous best approach 
 - **analysis** - folder contains scripts for t-SNE and PCA analysis for feature set visualization 
@@ -22,3 +25,10 @@ Inside pahse_1,
 - **utils.py** - feature extraction methods
 - **train.py** - training pipeline for voting based classifier
 - **submission_pipeline.py** - trains and saves the predictions in the submission format
+
+## Methodology 
+
+![image info](./phase_1/analysis/results/image.png)
+
+
+# PHASE 2: DL
