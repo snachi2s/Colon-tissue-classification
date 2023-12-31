@@ -32,12 +32,12 @@ Inside phase_1,
 
 For normal training and checking metrics, 
 ```python
-python train.py
+python phase_1/train.py
 ```
 
 To train the model and generate the predictions CSV file, run
 ```python
-python submission_pipeline.py
+python phase_1/submission_pipeline.py
 ```
 
 
