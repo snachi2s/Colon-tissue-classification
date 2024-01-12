@@ -4,44 +4,41 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 from torch.utils.data import DataLoader, Dataset
 from dataset import ColonCanerDataset
-from tqdm import tqdm
 from torchvision.models.resnet import ResNet50_Weights
 import utils
-import wandb   #for visualization, hyperparameter study and for keeping track of runs
+import wandb
 import hyperparameters
+import timm
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Hyperparameters
-LEARNING_RATE = 0.001
+LEARNING_RATE = 0.01 #high due to learning rate scheduler
 TRAIN_BATCH_SIZE = 8
-VALID_BATCH_SIZE = 4
+VALID_BATCH_SIZE = 8
 #TEST_BATCH_SIZE = 4
 
 EPOCHS = 35
 NUM_WORKERS = 4
 PIN_MEMORY = True
-TRAIN_IMG_DIR = "split_dataset/train"
-VALID_IMG_DIR = "split_dataset/valid"
-TEST_IMG_DIR = "split_dataset/test"
+TRAIN_IMG_DIR = "train"
+#VALID_IMG_DIR = "split_dataset/valid"
+#TEST_IMG_DIR = "split_dataset/test"
 LABEL_CSV = "train.csv"
 NUM_CLASSES = 4
 
 EARLY_STOPPING = True
-LR_SCHEDULER = False
+LR_SCHEDULER = True
 
-TEST_TRAINED_MODEL = True
-
-# Augmentation parameters
-IMAGE_HEIGHT = 224
-IMAGE_WIDTH = 224
+#Augmentation parameters
+IMAGE_HEIGHT = 256
+IMAGE_WIDTH = 256
 
 def main():
 
-    #initializing wandb 
-    #use wandb if you're comfortable else use matplotlib
-    wandb.init(project="colon tissue classification", entity="selvaa")  #!!!! you need to create your own account
+    #initializing wandb
+    wandb.init(project="colon tissue classification", entity="selvaa")
     wandb.config.epochs = EPOCHS
     wandb.config.batch_size = TRAIN_BATCH_SIZE
     wandb.config.learning_rate = LEARNING_RATE
@@ -49,18 +46,22 @@ def main():
     wandb.config.IMAGE_WIDTH = IMAGE_WIDTH
     wandb.config.NUM_CLASSES = NUM_CLASSES
 
+    #run_name
+    run_name = f"resnet50_{EPOCHS}epochs_{TRAIN_BATCH_SIZE}_batch_size_{LEARNING_RATE}_lr"
+    wandb.run.name = run_name
+
     #augmentations
     transform = A.Compose([
             A.Resize(height=IMAGE_HEIGHT, width=IMAGE_WIDTH),
-            A.VerticalFlip(p=0.1),
-            A.ColorJitter(p=0.5),
-            A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]), #using imagenet mean and std
+            A.Normalize(mean=[0.485, 0.456, 0.406], 
+                        std=[0.229, 0.224, 0.225]), #using imagenet mean and std
             ToTensorV2(),
         ])
 
     test_transform = A.Compose([
             A.Resize(height=IMAGE_HEIGHT, width=IMAGE_WIDTH),
-            A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]), #using imagenet mean and std
+            A.Normalize(mean=[0.485, 0.456, 0.406], 
+                        std=[0.229, 0.224, 0.225]), #using imagenet mean and std
             ToTensorV2(),
         ])
 
@@ -72,25 +73,17 @@ def main():
     # -----------------
     # DATALOADERS
     # ----------------- 
-    train_set = ColonCanerDataset(
+    dataset = ColonCanerDataset(
         image_dir=TRAIN_IMG_DIR,
         annotation_file=LABEL_CSV,
         transform=transform,
     )
 
-    valid_set = ColonCanerDataset(
-        image_dir=VALID_IMG_DIR,
-        annotation_file=LABEL_CSV,
-        transform=transform,
-    )
-
-    test_set = ColonCanerDataset(
-        image_dir=TEST_IMG_DIR,
-        annotation_file=LABEL_CSV,
-        transform=test_transform,
-    )
-
-    print(f"INFO: Training samples: {len(train_set)}, Validation samples: {len(valid_set)}, Test samples: {len(test_set)}")
+    #80-20 split
+    valid_size = int(0.2 * len(dataset))
+    train_size = len(dataset) - valid_size
+    train_set, valid_set = torch.utils.data.random_split(dataset, [train_size, valid_size])
+    print(f"INFO: Training samples: {len(train_set)}, Validation samples: {len(valid_set)}")
     
     train_loader = DataLoader(
         dataset=train_set,
@@ -108,25 +101,16 @@ def main():
         shuffle=False,
     )
 
-    test_loader = DataLoader(
-        dataset=valid_set,
-        batch_size=VALID_BATCH_SIZE,
-        num_workers=NUM_WORKERS,
-        pin_memory=PIN_MEMORY,
-        shuffle=False,
-    )
-
     # ----------------------------------
     # Model, optimizer, and losses 
     # ----------------------------------
-    model = models.resnet50(weights=None)
-    model.fc = torch.nn.Linear(in_features=2048, out_features=NUM_CLASSES)
-    #model.fc = torch.nn.Linear(in_features=2048, out_features=NUM_CLASSES)
+
+    model = timm.create_model('resnet50', pretrained=True, num_classes=NUM_CLASSES)
     model.to(DEVICE)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
-    weights = torch.tensor([1.0, 2.0, 1.0,2.0]).to(DEVICE) #to handle class imbalance giving more weights to class 1 and 3
-    loss_fn = torch.nn.CrossEntropyLoss(weight=weights)
+    #weights = torch.tensor([1.0, 2.0, 1.0,2.0]).to(DEVICE) #to handle class imbalance giving more weights to class 1 and 3
+    loss_fn = torch.nn.CrossEntropyLoss()
 
     if EARLY_STOPPING: 
         early_stop = hyperparameters.EarlyStopping(patience=8, min_delta=0.001, monitor='val_loss')
@@ -180,17 +164,6 @@ def main():
     saved_model_path = f"trained_models/best_resnet50_epoch_{best_epoch}_model.pth"
     torch.save(best_state_dict, saved_model_path)
     print(f"INFO: Best model saved at {best_epoch} epoch with loss {best_loss:.3f}")
-
-    #testing the trained model
-    if TEST_TRAINED_MODEL:
-        print("INFO: Testing the trained model")
-        model.load_state_dict(torch.load(saved_model_path))
-        test_loss = utils.validation(test_loader, model, loss_fn)
-        print(f"INFO: Test loss: {test_loss:.3f}")
-
-    #run_name
-    run_name = f"resnet50_{EPOCHS}_epochs_{TRAIN_BATCH_SIZE}_batch_size_{LEARNING_RATE}_lr"
-    wandb.run.name = run_name
 
     wandb.finish()
 
