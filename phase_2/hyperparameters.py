@@ -2,26 +2,34 @@ import torch
 import numpy as np
 from torch.optim.lr_scheduler import StepLR, CosineAnnealingLR, CosineAnnealingWarmRestarts, MultiStepLR
 
-##### OPTIMIZERS
+#---------------------
+# Optimizers
+#---------------------
 def choose_optimizer(model, optimizer_name, lr):
 
     optimizers_dict = {
         'adam': torch.optim.Adam,
         'sgd': torch.optim.SGD,
+        'adamw': torch.optim.AdamW,
     }
     optimizer = optimizers_dict.get(optimizer_name.lower())
 
     if optimizer_name.lower() == 'sgd':
         optimizer = optimizer(model.parameters(), lr=lr, momentum=0.9)
+
+    elif optimizer_name.lower() == 'adamw':
+        optimizer = optimizer(model.parameters(), lr=lr, weight_decay=1e-6)
+
     else:
         optimizer = optimizer(model.parameters(), lr=lr) 
 
     return optimizer 
 
-def learning_rate_scheduler(optimizer, scheduler_name, step_size=4, gamma=0.5, min_lr=1e-5):
+def learning_rate_scheduler(optimizer, scheduler_name, step_size=120, gamma=0.5, min_lr=1e-5):
 
     scheduler_dict = {
         'step_lr': torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma),
+        'one_cycle_lr': torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.001, total_steps=step_size, epochs=40),
         'cosine_annealing': torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=step_size, eta_min=min_lr),
         'multi_step_lr': torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[step_size, step_size*2], gamma=gamma),
         'cyclic_lr': torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=min_lr, max_lr=0.1, step_size_up=step_size, cycle_momentum=False),

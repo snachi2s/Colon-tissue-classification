@@ -5,14 +5,18 @@ from PIL import Image
 import torchvision.transforms as transforms
 import timm
 from tqdm import tqdm
+#from timm.models import hub
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 TEST_IMG_DIR = "test"  
-MODEL_WEIGHTS_PATH = 'trained_models/best_resnet50_epoch_12_model.pth'
+MODEL_WEIGHTS_PATH = 'trained_models/best_model.pth'
 CSV_FILE = "test.csv"
+model_name = 'efficientnet_b3a'
 
-model = timm.create_model('resnet50', pretrained=False, num_classes=4)
+model = timm.create_model(model_name, pretrained=False, num_classes=4)
 model.load_state_dict(torch.load(MODEL_WEIGHTS_PATH))
+# model_cfg = dict(labels=['normal tissue', 'serrated lesion', 'adenocarcinoma', 'adenoma'])
+# hub.push_to_hf_hub(model, model_name, model_config=model_cfg)
 model.to(DEVICE)
 model.eval()
 print("INFO: MODEL LOADED !!!")
@@ -21,8 +25,8 @@ transform = transforms.Compose([
     transforms.Resize((256,256)),
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], 
-                         std=[0.229, 0.224, 0.225])
-])
+                         std=[0.229, 0.224, 0.225]),
+    ])
 
 def predict(image_path, model, transform):
     image = Image.open(image_path).convert('RGB')
