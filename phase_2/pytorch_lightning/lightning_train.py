@@ -1,4 +1,4 @@
-from ..dataset import ColonCanerDataset
+from dataset import ColonCanerDataset
 import torch
 import timm
 from torchvision import transforms
