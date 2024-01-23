@@ -19,14 +19,14 @@ Inside phase_2,
 
 For training it in hugging face,
 
-`python
+```python
 python phase_2/hugging_face_train.py 
 #similarly for lightning and custom pipeline
-`
+```
 
 ## Hugging Face Hub
 
-- Our best model is loaded at [selvaa/vit-colon-cancer-classification]
+- Our best model is loaded at [selvaa/vit-colon-cancer-classification](https://huggingface.co/selvaa/vit-colon-cancer-classification)
 
 # PHASE 1: ML 
 
