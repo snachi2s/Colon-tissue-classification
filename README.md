@@ -1,6 +1,32 @@
 # GROUP 5
 # Colon-tissue-classification
 
+# PHASE 2: DL
+
+## Folder structure
+
+Inside phase_2,
+
+- **hugging_face_training.py** - leverages Hugging Face library to train, validate and pushning model to HF Hub. Current pipeline supports google/vit  and facebook/deit variants
+- **hugging_face_inference.py** - loads trained models from HF Hub and does inference on that --> creates predictions csv too
+- **custom_pipeline/** - contains the training, utils and inference scripts to train  torchvision & timm models
+- **pytorch_lightning/** - uses PyTorch lightning library for easy training, validation, and logging
+- **report.md** - our top3 submission results and their corresponding classification reports
+
+## Methodology
+
+![image info](phase_1/analysis/results/phase2.jpeg)
+
+For training it in hugging face,
+
+`python
+python phase_2/hugging_face_train.py 
+#similarly for lightning and custom pipeline
+`
+
+## Hugging Face Hub
+
+- Our best model is loaded at [selvaa/vit-colon-cancer-classification]
 
 # PHASE 1: ML 
 
@@ -41,4 +67,4 @@ python phase_1/submission_pipeline.py
 ```
 
 
-# PHASE 2: DL
+
